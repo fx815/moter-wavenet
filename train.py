@@ -11,7 +11,6 @@ options:
     --restore-parts=<path>       Restore part of the model.
     --log-event-path=<name>      Log event path.
     --reset-optimizer            Reset optimizer.
-    --speaker-id=<N>             Use specific speaker of data in case for multi-speaker datasets.
     -h, --help                   Show this help message and exit
 """
 from docopt import docopt
@@ -46,6 +45,7 @@ from nnmnkwii import preprocessing as P
 from nnmnkwii.datasets import FileSourceDataset, FileDataSource
 
 import librosa.display
+import soundfile as sf
 
 from tensorboardX import SummaryWriter
 from matplotlib import cm
@@ -70,14 +70,14 @@ if use_cuda:
 
 
 def sanity_check(model, c, g):
-    if model.has_speaker_embedding():
-        if g is None:
-            raise RuntimeError(
-                "WaveNet expects speaker embedding, but speaker-id is not provided")
-    else:
-        if g is not None:
-            raise RuntimeError(
-                "WaveNet expects no speaker embedding, but speaker-id is provided")
+    # if model.has_speaker_embedding():
+    #     if g is None:
+    #         raise RuntimeError(
+    #             "WaveNet expects speaker embedding, but speaker-id is not provided")
+    # else:
+    #     if g is not None:
+    #         raise RuntimeError(
+    #             "WaveNet expects no speaker embedding, but speaker-id is provided")
 
     if model.local_conditioning_enabled():
         if c is None:
@@ -156,16 +156,11 @@ def to_categorical(y, num_classes=None, dtype='float32'):
 
 # TODO: I know this is too ugly...
 class _NPYDataSource(FileDataSource):
-    def __init__(self, dump_root, col, typ="", speaker_id=None, max_steps=8000,
-                 cin_pad=0, hop_size=256):
+    def __init__(self, dump_root, col, typ="", max_steps=8000, hop_size=256):
         self.dump_root = dump_root
         self.col = col
         self.lengths = []
-        self.speaker_id = speaker_id
-        self.multi_speaker = False
-        self.speaker_ids = None
         self.max_steps = max_steps
-        self.cin_pad = cin_pad
         self.hop_size = hop_size
         self.typ = typ
 
@@ -178,8 +173,8 @@ class _NPYDataSource(FileDataSource):
         with open(meta, "rb") as f:
             lines = f.readlines()
         l = lines[0].decode("utf-8").split("|")
-        assert len(l) == 4 or len(l) == 5
-        self.multi_speaker = len(l) == 5
+        assert len(l) == 4
+        # self.multi_speaker = len(l) == 5
         self.lengths = list(
             map(lambda l: int(l.decode("utf-8").split("|")[2]), lines))
 
@@ -188,30 +183,30 @@ class _NPYDataSource(FileDataSource):
 
         # Exclude small files (assuming lenghts are in frame unit)
         # TODO: consider this for multi-speaker
-        if self.max_steps is not None:
-            idx = np.array(self.lengths) * self.hop_size > self.max_steps + 2 * self.cin_pad * self.hop_size
-            if idx.sum() != len(self.lengths):
-                print("{} short samples are omitted for training.".format(len(self.lengths) - idx.sum()))
-            self.lengths = list(np.array(self.lengths)[idx])
-            paths = list(np.array(paths)[idx])
+        # if self.max_steps is not None:
+        #     idx = np.array(self.lengths) > self.max_steps
+        #     if idx.sum() != len(self.lengths):
+        #         print("{} short samples are omitted for training.".format(len(self.lengths) - idx.sum()))
+        #     self.lengths = list(np.array(self.lengths)[idx])
+        #     paths = list(np.array(paths)[idx])
 
-        if self.multi_speaker:
-            speaker_ids = list(map(lambda l: int(l.decode("utf-8").split("|")[-1]), lines))
-            self.speaker_ids = speaker_ids
-            if self.speaker_id is not None:
-                # Filter by speaker_id
-                # using multi-speaker dataset as a single speaker dataset
-                indices = np.array(speaker_ids) == self.speaker_id
-                paths = list(np.array(paths)[indices])
-                self.lengths = list(np.array(self.lengths)[indices])
-                # aha, need to cast numpy.int64 to int
-                self.lengths = list(map(int, self.lengths))
-                self.multi_speaker = False
+        # if self.multi_speaker:
+        #     speaker_ids = list(map(lambda l: int(l.decode("utf-8").split("|")[-1]), lines))
+        #     self.speaker_ids = speaker_ids
+        #     if self.speaker_id is not None:
+        #         # Filter by speaker_id
+        #         # using multi-speaker dataset as a single speaker dataset
+        #         indices = np.array(speaker_ids) == self.speaker_id
+        #         paths = list(np.array(paths)[indices])
+        #         self.lengths = list(np.array(self.lengths)[indices])
+        #         # aha, need to cast numpy.int64 to int
+        #         self.lengths = list(map(int, self.lengths))
+        #         self.multi_speaker = False
 
-        if self.multi_speaker:
-            speaker_ids_np = list(np.array(self.speaker_ids)[indices])
-            self.speaker_ids = list(map(int, speaker_ids_np))
-            assert len(paths) == len(self.speaker_ids)
+        # if self.multi_speaker:
+        #     speaker_ids_np = list(np.array(self.speaker_ids)[indices])
+        #     self.speaker_ids = list(map(int, speaker_ids_np))
+        #     assert len(paths) == len(self.speaker_ids)
 
         return paths
 
@@ -283,7 +278,7 @@ class PyTorchDataset(object):
         self.X = X
         self.Mel = Mel
         # alias
-        self.multi_speaker = X.file_data_source.multi_speaker
+        # self.multi_speaker = X.file_data_source.multi_speaker
 
     def __getitem__(self, idx):
         if self.Mel is None:
@@ -292,13 +287,13 @@ class PyTorchDataset(object):
             mel = self.Mel[idx]
 
         raw_audio = self.X[idx]
-        if self.multi_speaker:
-            speaker_id = self.X.file_data_source.speaker_ids[idx]
-        else:
-            speaker_id = None
+        # if self.multi_speaker:
+        #     speaker_id = self.X.file_data_source.speaker_ids[idx]
+        # else:
+        #     speaker_id = None
 
         # (x,c,g)
-        return raw_audio, mel, speaker_id
+        return raw_audio, mel, None
 
     def __len__(self):
         return len(self.X)
@@ -376,7 +371,6 @@ class DiscretizedMixturelogisticLoss(nn.Module):
 
         # (B, T, 1)
         mask_ = mask.expand_as(target)
-
         losses = discretized_mix_logistic_loss(
             input, target, num_classes=hparams.quantize_channels,
             log_scale_min=hparams.log_scale_min, reduce=False)
@@ -448,24 +442,24 @@ def collate_fn(batch):
         new_batch = []
         for idx in range(len(batch)):
             x, c, g = batch[idx]
-            if hparams.upsample_conditional_features:
-                assert_ready_for_upsampling(x, c, cin_pad=0)
-                if max_time_steps is not None:
-                    max_steps = ensure_divisible(max_time_steps, audio.get_hop_size(), True)
-                    if len(x) > max_steps:
-                        max_time_frames = max_steps // audio.get_hop_size()
-                        s = np.random.randint(cin_pad, len(c) - max_time_frames - cin_pad)
-                        ts = s * audio.get_hop_size()
-                        x = x[ts:ts + audio.get_hop_size() * max_time_frames]
-                        c = c[s - cin_pad:s + max_time_frames + cin_pad, :]
-                        assert_ready_for_upsampling(x, c, cin_pad=cin_pad)
-            else:
-                x, c = audio.adjust_time_resolution(x, c)
-                if max_time_steps is not None and len(x) > max_time_steps:
-                    s = np.random.randint(cin_pad, len(x) - max_time_steps - cin_pad)
-                    x = x[s:s + max_time_steps]
-                    c = c[s - cin_pad:s + max_time_steps + cin_pad, :]
-                assert len(x) == len(c)
+            # if hparams.upsample_conditional_features:
+            #     assert_ready_for_upsampling(x, c, cin_pad=0)
+            #     if max_time_steps is not None:
+            #         max_steps = ensure_divisible(max_time_steps, audio.get_hop_size(), True)
+            #         if len(x) > max_steps:
+            #             max_time_frames = max_steps // audio.get_hop_size()
+            #             s = np.random.randint(cin_pad, len(c) - max_time_frames - cin_pad)
+            #             ts = s * audio.get_hop_size()
+            #             x = x[ts:ts + audio.get_hop_size() * max_time_frames]
+            #             c = c[s - cin_pad:s + max_time_frames + cin_pad, :]
+            #             assert_ready_for_upsampling(x, c, cin_pad=cin_pad)
+            # else:
+            #     x, c = audio.adjust_time_resolution(x, c)
+            #     if max_time_steps is not None and len(x) > max_time_steps:
+            #         s = np.random.randint(cin_pad, len(x) - max_time_steps - cin_pad)
+            #         x = x[s:s + max_time_steps]
+            #         c = c[s - cin_pad:s + max_time_steps + cin_pad, :]
+            assert len(x) == len(c)
             new_batch.append((x, c, g))
         batch = new_batch
     else:
@@ -502,7 +496,7 @@ def collate_fn(batch):
     if is_mulaw_quantize(hparams.input_type):
         padding_value = P.mulaw_quantize(0, mu=hparams.quantize_channels - 1)
         y_batch = np.array([_pad(x[0], max_input_len, constant_values=padding_value)
-                            for x in batch], dtype=np.int)
+                            for x in batch], dtype=np.int32)
     else:
         y_batch = np.array([_pad(x[0], max_input_len) for x in batch], dtype=np.float32)
     assert len(y_batch.shape) == 2
@@ -544,9 +538,9 @@ def save_waveplot(path, y_hat, y_target):
 
     plt.figure(figsize=(16, 6))
     plt.subplot(2, 1, 1)
-    librosa.display.waveplot(y_target, sr=sr)
+    librosa.display.waveshow(y_target, sr=sr)
     plt.subplot(2, 1, 2)
-    librosa.display.waveplot(y_hat, sr=sr)
+    librosa.display.waveshow(y_hat, sr=sr)
     plt.tight_layout()
     plt.savefig(path, format="png")
     plt.close()
@@ -614,9 +608,9 @@ def eval_model(global_step, writer, device, model, y, c, g, input_lengths, eval_
     # Save audio
     os.makedirs(eval_dir, exist_ok=True)
     path = join(eval_dir, "step{:09d}_predicted.wav".format(global_step))
-    librosa.output.write_wav(path, y_hat, sr=hparams.sample_rate)
+    sf.write(path, y_hat, samplerate=hparams.sample_rate)
     path = join(eval_dir, "step{:09d}_target.wav".format(global_step))
-    librosa.output.write_wav(path, y_target, sr=hparams.sample_rate)
+    sf.write(path, y_target, samplerate=hparams.sample_rate)
 
     # save figure
     path = join(eval_dir, "step{:09d}_waveplots.png".format(global_step))
@@ -669,9 +663,9 @@ def save_states(global_step, writer, y_hat, y, input_lengths, checkpoint_dir=Non
     audio_dir = join(checkpoint_dir, "intermediate", "audio")
     os.makedirs(audio_dir, exist_ok=True)
     path = join(audio_dir, "step{:09d}_predicted.wav".format(global_step))
-    librosa.output.write_wav(path, y_hat, sr=hparams.sample_rate)
+    sf.write(path, y_hat, samplerate=hparams.sample_rate)
     path = join(audio_dir, "step{:09d}_target.wav".format(global_step))
-    librosa.output.write_wav(path, y, sr=hparams.sample_rate)
+    sf.write(path, y, samplerate=hparams.sample_rate)
 
 # workaround for https://github.com/pytorch/pytorch/issues/15716
 # the idea is to return outputs and replicas explicitly, so that making pytorch
@@ -737,6 +731,8 @@ def __train_step(device, phase, epoch, global_step, global_test_step,
         # you must make sure that batch size % num gpu == 0
         y_hat, _outputs, _replicas = data_parallel_workaround(model, (x, c, g, False))
     else:
+        print(x.shape)
+        print(c.shape)
         y_hat = model(x, c, g, False)
 
     if is_mulaw_quantize(hparams.input_type):
@@ -889,14 +885,14 @@ def build_model():
         if hparams.out_channels != hparams.quantize_channels:
             raise RuntimeError(
                 "out_channels must equal to quantize_chennels if input_type is 'mulaw-quantize'")
-    if hparams.upsample_conditional_features and hparams.cin_channels < 0:
-        s = "Upsample conv layers were specified while local conditioning disabled. "
-        s += "Notice that upsample conv layers will never be used."
-        warn(s)
+    # if hparams.upsample_conditional_features and hparams.cin_channels < 0:
+    #     s = "Upsample conv layers were specified while local conditioning disabled. "
+    #     s += "Notice that upsample conv layers will never be used."
+    #     warn(s)
 
-    upsample_params = hparams.upsample_params
-    upsample_params["cin_channels"] = hparams.cin_channels
-    upsample_params["cin_pad"] = hparams.cin_pad
+    # upsample_params = hparams.upsample_params
+    # upsample_params["cin_channels"] = hparams.cin_channels
+    # upsample_params["cin_pad"] = hparams.cin_pad
     model = WaveNet(
         out_channels=hparams.out_channels,
         layers=hparams.layers,
@@ -906,12 +902,12 @@ def build_model():
         skip_out_channels=hparams.skip_out_channels,
         cin_channels=hparams.cin_channels,
         gin_channels=hparams.gin_channels,
-        n_speakers=hparams.n_speakers,
+        # n_speakers=hparams.n_speakers,
         dropout=hparams.dropout,
         kernel_size=hparams.kernel_size,
-        cin_pad=hparams.cin_pad,
+        # cin_pad=hparams.cin_pad,
         upsample_conditional_features=hparams.upsample_conditional_features,
-        upsample_params=upsample_params,
+        # upsample_params=upsample_params,
         scalar_input=is_scalar_input(hparams.input_type),
         output_distribution=hparams.output_distribution,
     )
@@ -970,7 +966,7 @@ def restore_parts(path, model):
                 warn("{}: may contain invalid size of weight. skipping...".format(k))
 
 
-def get_data_loaders(dump_root, speaker_id, test_shuffle=True):
+def get_data_loaders(dump_root, test_shuffle=True):
     data_loaders = {}
     local_conditioning = hparams.cin_channels > 0
 
@@ -982,13 +978,13 @@ def get_data_loaders(dump_root, speaker_id, test_shuffle=True):
     for phase in ["train_no_dev", "dev"]:
         train = phase == "train_no_dev"
         X = FileSourceDataset(
-            RawAudioDataSource(join(dump_root, phase), speaker_id=speaker_id,
-                               max_steps=max_steps, cin_pad=hparams.cin_pad,
+            RawAudioDataSource(join(dump_root, phase),
+                               max_steps=max_steps,
                                hop_size=audio.get_hop_size()))
         if local_conditioning:
             Mel = FileSourceDataset(
-                MelSpecDataSource(join(dump_root, phase), speaker_id=speaker_id,
-                                  max_steps=max_steps, cin_pad=hparams.cin_pad,
+                MelSpecDataSource(join(dump_root, phase),
+                                  max_steps=max_steps,
                                   hop_size=audio.get_hop_size()))
             assert len(X) == len(Mel)
             print("Local conditioning enabled. Shape of a sample: {}.".format(
@@ -1005,7 +1001,7 @@ def get_data_loaders(dump_root, speaker_id, test_shuffle=True):
             shuffle = False
             # make sure that there's no sorting bugs for https://github.com/r9y9/wavenet_vocoder/issues/130
             sampler_idx = np.asarray(sorted(list(map(lambda s: int(s), sampler))))
-            assert (sampler_idx == np.arange(len(sampler_idx), dtype=np.int)).all()
+            assert (sampler_idx == np.arange(len(sampler_idx), dtype=np.int32)).all()
         else:
             sampler = None
             shuffle = test_shuffle
@@ -1016,16 +1012,16 @@ def get_data_loaders(dump_root, speaker_id, test_shuffle=True):
             num_workers=hparams.num_workers, sampler=sampler, shuffle=shuffle,
             collate_fn=collate_fn, pin_memory=hparams.pin_memory)
 
-        speaker_ids = {}
-        if X.file_data_source.multi_speaker:
-            for idx, (x, c, g) in enumerate(dataset):
-                if g is not None:
-                    try:
-                        speaker_ids[g] += 1
-                    except KeyError:
-                        speaker_ids[g] = 1
-            if len(speaker_ids) > 0:
-                print("Speaker stats:", speaker_ids)
+        # speaker_ids = {}
+        # if X.file_data_source.multi_speaker:
+        #     for idx, (x, c, g) in enumerate(dataset):
+        #         if g is not None:
+        #             try:
+        #                 speaker_ids[g] += 1
+        #             except KeyError:
+        #                 speaker_ids[g] = 1
+        #     if len(speaker_ids) > 0:
+        #         print("Speaker stats:", speaker_ids)
 
         data_loaders[phase] = data_loader
 
@@ -1038,8 +1034,8 @@ if __name__ == "__main__":
     checkpoint_dir = args["--checkpoint-dir"]
     checkpoint_path = args["--checkpoint"]
     checkpoint_restore_parts = args["--restore-parts"]
-    speaker_id = args["--speaker-id"]
-    speaker_id = int(speaker_id) if speaker_id is not None else None
+    # speaker_id = args["--speaker-id"]
+    # speaker_id = int(speaker_id) if speaker_id is not None else None
     preset = args["--preset"]
 
     dump_root = args["--dump-root"]
@@ -1067,11 +1063,12 @@ if __name__ == "__main__":
         json.dump(hparams.values(), f, indent=2)
 
     # Dataloader setup
-    data_loaders = get_data_loaders(dump_root, speaker_id, test_shuffle=True)
+    data_loaders = get_data_loaders(dump_root, test_shuffle=True)
 
     maybe_set_epochs_based_on_max_steps(hparams, len(data_loaders["train_no_dev"]))
 
     device = torch.device("cuda" if use_cuda else "cpu")
+    print(device)
 
     # Model
     model = build_model().to(device)

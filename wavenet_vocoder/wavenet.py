@@ -192,9 +192,9 @@ class WaveNet(nn.Module):
         # Expand global conditioning features to all time steps
         g_bct = _expand_global_features(B, T, g, bct=True)
 
-        if c is not None and self.upsample_net is not None:
-            c = self.upsample_net(c)
-            assert c.size(-1) == x.size(-1)
+        # if c is not None and self.upsample_net is not None:
+        #     c = self.upsample_net(c)
+        assert c.size(-1) == x.size(-1)
 
         # Feed data to network
         x = self.first_conv(x)
@@ -209,6 +209,8 @@ class WaveNet(nn.Module):
             x = f(x)
 
         x = F.softmax(x, dim=1) if softmax else x
+
+        print(x.shape)
 
         return x
 
@@ -235,7 +237,7 @@ class WaveNet(nn.Module):
             log_scale_min (float):  Log scale minimum value.
 
         Returns:
-            Tensor: Generated one-hot encoded samples. B x C x T　
+            Tensor: Generated one-hot encoded samples. B x C x T
               or scaler vector B x 1 x T
         """
         self.clear_buffer()

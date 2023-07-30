@@ -40,12 +40,12 @@ use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
 
 
-def to_int16(x):
-    if x.dtype == np.int16:
+def to_int32(x):
+    if x.dtype == np.int32:
         return x
     assert x.dtype == np.float32
     assert x.min() >= -1 and x.max() <= 1.0
-    return (x * 32767).astype(np.int16)
+    return (x * 2147483647).astype(np.int32)
 
 
 def dummy_collate(batch):
@@ -200,10 +200,11 @@ if __name__ == "__main__":
         else:
             _tqdm = tqdm
 
+
         # Generate
         y_hats = batch_wavegen(model, c=c, g=g, fast=True, tqdm=_tqdm)
 
-        # Save each utt.
+        # Save each utt.s
         has_ref_file = len(ref_files) > 0
         for i, (ref, gen, length) in enumerate(zip(x, y_hats, input_lengths)):
             if has_ref_file:
@@ -248,9 +249,9 @@ if __name__ == "__main__":
             if has_ref_file:
                 ref = np.clip(ref, -1.0, 1.0)
 
-            wavfile.write(dst_wav_path, hparams.sample_rate, to_int16(gen))
+            wavfile.write(dst_wav_path, hparams.sample_rate, to_int32(gen))
             if has_ref_file:
-                wavfile.write(target_wav_path, hparams.sample_rate, to_int16(ref))
+                wavfile.write(target_wav_path, hparams.sample_rate, to_int32(ref))
 
             # log (TODO)
             if output_html and False:

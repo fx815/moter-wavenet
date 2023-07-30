@@ -10,6 +10,7 @@ from os.path import exists, basename, splitext
 import librosa
 from glob import glob
 from os.path import join
+from shutil import copy2
 
 from wavenet_vocoder.util import is_mulaw_quantize, is_mulaw, is_raw
 
@@ -18,7 +19,7 @@ def build_from_path(in_dir, out_dir, num_workers=1, tqdm=lambda x: x):
     executor = ProcessPoolExecutor(max_workers=num_workers)
     futures = []
     index = 1
-    src_files = sorted(glob(join(in_dir, "*.wav")))
+    src_files = sorted(glob(join(in_dir, "*wave.npy")))
     for wav_path in src_files:
         futures.append(executor.submit(
             partial(_process_utterance, out_dir, index, wav_path, "dummy")))
@@ -26,16 +27,20 @@ def build_from_path(in_dir, out_dir, num_workers=1, tqdm=lambda x: x):
     return [future.result() for future in tqdm(futures)]
 
 
-def _process_utterance(out_dir, index, wav_path, text):
+def _process_utterance(out_dir, index, audio_path, text):
     # Load the audio to a numpy array:
-    wav = audio.load_wav(wav_path)
+    wav = np.load(audio_path)
+    signed_int32_max = 2**31
+    if wav.dtype == np.int32:
+        wav = wav.astype(np.float32) / signed_int32_max
+    wav = np.clip(wav, -1.0, 1.0)
 
     # Trim begin/end silences
     # NOTE: the threshold was chosen for clean signals
-    wav, _ = librosa.effects.trim(wav, top_db=60, frame_length=2048, hop_length=512)
+    # wav, _ = librosa.effects.trim(wav, top_db=60, frame_length=2048, hop_length=512)
 
-    if hparams.highpass_cutoff > 0.0:
-        wav = audio.low_cut_filter(wav, hparams.sample_rate, hparams.highpass_cutoff)
+    # if hparams.highpass_cutoff > 0.0:
+    #     wav = audio.low_cut_filter(wav, hparams.sample_rate, hparams.highpass_cutoff)
 
     # Mu-law quantize
     if is_mulaw_quantize(hparams.input_type):
@@ -59,7 +64,7 @@ def _process_utterance(out_dir, index, wav_path, text):
 
     # Compute a mel-scale spectrogram from the trimmed wav:
     # (N, D)
-    mel_spectrogram = audio.logmelspectrogram(wav).astype(np.float32).T
+    # mel_spectrogram = audio.logmelspectrogram(wav).astype(np.float32).T
 
     if hparams.global_gain_scale > 0:
         wav *= hparams.global_gain_scale
@@ -87,26 +92,32 @@ def _process_utterance(out_dir, index, wav_path, text):
 
     # zero pad
     # this is needed to adjust time resolution between audio and mel-spectrogram
-    l, r = audio.pad_lr(out, hparams.fft_size, audio.get_hop_size())
-    if l > 0 or r > 0:
-        out = np.pad(out, (l, r), mode="constant", constant_values=constant_values)
-    N = mel_spectrogram.shape[0]
-    assert len(out) >= N * audio.get_hop_size()
+    # l, r = audio.pad_lr(out, hparams.fft_size, audio.get_hop_size())
+    # if l > 0 or r > 0:
+    #     out = np.pad(out, (l, r), mode="constant", constant_values=constant_values)
+    # N = mel_spectrogram.shape[0]
+    # assert len(out) >= N * audio.get_hop_size()
 
     # time resolution adjustment
     # ensure length of raw audio is multiple of hop_size so that we can use
     # transposed convolution to upsample
-    out = out[:N * audio.get_hop_size()]
-    assert len(out) % audio.get_hop_size() == 0
+    # out = out[:N * audio.get_hop_size()]
+    # assert len(out) % audio.get_hop_size() == 0
 
     # Write the spectrograms to disk:
-    name = splitext(basename(wav_path))[0]
+    name = splitext(basename(audio_path))[0]
     audio_filename = '%s-wave.npy' % (name)
-    mel_filename = '%s-feats.npy' % (name)
+    feature_filename = '%s-feats.npy' % (name)
+    # mel_filename = '%s-feats.npy' % (name)
     np.save(os.path.join(out_dir, audio_filename),
             out.astype(out_dtype), allow_pickle=False)
-    np.save(os.path.join(out_dir, mel_filename),
-            mel_spectrogram.astype(np.float32), allow_pickle=False)
+    copy2(audio_path.replace('wave.npy','feats.npy'),os.path.join(out_dir, feature_filename))
+
+    N_audio = out.shape[0]
+    N_feats = np.load(os.path.join(out_dir, feature_filename)).shape[0]
+    assert N_audio==N_feats, "audio and feature have different length"
+    # np.save(os.path.join(out_dir, mel_filename),
+    #         mel_spectrogram.astype(np.float32), allow_pickle=False)
 
     # Return a tuple describing this training example:
-    return (audio_filename, mel_filename, N, text)
+    return (audio_filename, feature_filename, N_audio, text)

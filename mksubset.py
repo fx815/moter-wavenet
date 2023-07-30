@@ -52,18 +52,14 @@ if __name__ == "__main__":
     target_sr = int(target_sr) if target_sr is not None else None
     random_state = int(args["--random-state"])
 
-    src_files = sorted(glob(join(in_dir, "*.wav")))
-    raw_files = sorted(glob(join(in_dir, "*.raw")))
-    is_raw = len(src_files) == 0 and len(raw_files) > 0
-    if is_raw:
-        print("Assuming 24kHz /16bit audio data")
-        src_files = raw_files
+    src_files = sorted(glob(join(in_dir, "*wave.npy")))
     if len(src_files) == 0:
         raise RuntimeError("No files found in {}".format(in_dir))
 
     total_samples = 0
     indices = []
-    signed_int16_max = 2**15
+    file_names = []
+    signed_int32_max = 2**31
 
     os.makedirs(out_dir, exist_ok=True)
     if train_dev_test_split:
@@ -73,38 +69,18 @@ if __name__ == "__main__":
 
     print("Total number of utterances: {}".format(len(src_files)))
     for idx, src_file in tqdm(enumerate(src_files)):
-        sr, x = read_wav_or_raw(src_file, is_raw)
-        if x.dtype == np.int16:
-            x = x.astype(np.float32) / signed_int16_max
-        total_samples += len(x)
-        total_hours = float(total_samples) / sr / 3600.0
         indices.append(idx)
-
-        if total_hours > limit:
-            print("Total hours {:.3f} exceeded limit ({} hours).".format(total_hours, limit))
-            break
-    print("Total number of collected utterances: {}".format(len(indices)))
+    print(src_files)
 
     if train_dev_test_split:
-        from sklearn.model_selection import train_test_split as split
-        # Get test and dev set from last
-        if test_size > 1 and dev_size > 1:
-            test_size = int(test_size)
-            dev_size = int(dev_size)
-            testdev_size = test_size + dev_size
-            train_indices = indices[:-testdev_size]
-            dev_indices = indices[-testdev_size:-testdev_size + dev_size]
-            test_indices = indices[-test_size:]
-        else:
-            train_indices, dev_test_indices = split(
-                indices, test_size=test_size + dev_size, random_state=random_state)
-            dev_indices, test_indices = split(
-                dev_test_indices, test_size=test_size / (test_size + dev_size),
-                random_state=random_state)
+        train_indices=[2,3,4]
+        dev_indices = [0]
+        eval_indices = [1]
+
         sets = [
             (sorted(train_indices), join(out_dir, "train_no_dev")),
             (sorted(dev_indices), join(out_dir, "dev")),
-            (sorted(test_indices), join(out_dir, "eval")),
+            (sorted(eval_indices), join(out_dir, "eval")),
         ]
     else:
         sets = [(indices, out_dir)]
@@ -113,34 +89,21 @@ if __name__ == "__main__":
     scaler = MinMaxScaler()
 
     total_samples = {}
-    sr = 0
+    sr = 48000
     for indices, d in sets:
         set_name = basename(d)
         total_samples[set_name] = 0
         for idx in tqdm(indices):
             src_file = src_files[idx]
             dst_path = join(d, basename(src_file))
-            if target_sr is not None:
-                sr, x = read_wav_or_raw(src_file, is_raw)
-                is_int16 = x.dtype == np.int16
-                if is_int16:
-                    x = x.astype(np.float32) / signed_int16_max
-                if target_sr is not None and target_sr != sr:
-                    x = librosa.resample(x, sr, target_sr)
-                    sr = target_sr
-                scaler.partial_fit(x.astype(np.float64).reshape(-1, 1))
-                if is_int16:
-                    x = (x * signed_int16_max).astype(np.int16)
-                write_wav_or_raw(dst_path, sr, x, is_raw)
-                total_samples[set_name] += len(x)
-            else:
-                sr, x = read_wav_or_raw(src_file, is_raw)
-                is_int16 = x.dtype == np.int16
-                if is_int16:
-                    x = x.astype(np.float32) / signed_int16_max
-                scaler.partial_fit(x.astype(np.float64).reshape(-1, 1))
-                total_samples[set_name] += len(x)
-                copy2(src_file, dst_path)
+            x = np.load(src_file)
+            is_int32 = x.dtype == np.int32
+            if is_int32:
+                x = x.astype(np.float64) / signed_int32_max
+            scaler.partial_fit(x.astype(np.float64).reshape(-1, 1))
+            total_samples[set_name] += len(x)
+            copy2(src_file, dst_path)
+            copy2(src_file.replace('wave.npy','feats.npy'),dst_path.replace('wave.npy','feats.npy'))
 
     print("Waveform min: {}".format(scaler.data_min_))
     print("Waveform max: {}".format(scaler.data_max_))

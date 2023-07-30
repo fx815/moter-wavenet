@@ -31,9 +31,9 @@ def low_cut_filter(x, fs, cutoff=70):
 
 def load_wav(path):
     sr, x = wavfile.read(path)
-    signed_int16_max = 2**15
-    if x.dtype == np.int16:
-        x = x.astype(np.float32) / signed_int16_max
+    signed_int32_max = 2**31
+    if x.dtype == np.int32:
+        x = x.astype(np.float32) / signed_int32_max
     if sr != hparams.sample_rate:
         x = librosa.resample(x, sr, hparams.sample_rate)
     x = np.clip(x, -1.0, 1.0)
@@ -41,8 +41,8 @@ def load_wav(path):
 
 
 def save_wav(wav, path):
-    wav *= 32767 / max(0.01, np.max(np.abs(wav)))
-    wavfile.write(path, hparams.sample_rate, wav.astype(np.int16))
+    wav *= 2,147,483,647 / max(0.01, np.max(np.abs(wav)))
+    wavfile.write(path, hparams.sample_rate, wav.astype(np.int32))
 
 
 def trim(quantized):
@@ -151,7 +151,7 @@ def _linear_to_mel(spectrogram):
 def _build_mel_basis():
     if hparams.fmax is not None:
         assert hparams.fmax <= hparams.sample_rate // 2
-    return librosa.filters.mel(hparams.sample_rate, hparams.fft_size,
+    return librosa.filters.mel(sr=hparams.sample_rate, n_fft=hparams.fft_size,
                                fmin=hparams.fmin, fmax=hparams.fmax,
                                n_mels=hparams.num_mels)
 

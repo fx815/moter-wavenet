@@ -19,7 +19,7 @@ import importlib
 from hparams import hparams
 
 
-def preprocess(mod, in_dir, out_root, num_workers):
+def preprocess(mod, in_dir, out_dir, num_workers):
     os.makedirs(out_dir, exist_ok=True)
     metadata = mod.build_from_path(in_dir, out_dir, num_workers, tqdm=tqdm)
     write_metadata(metadata, out_dir)
@@ -29,12 +29,12 @@ def write_metadata(metadata, out_dir):
     with open(os.path.join(out_dir, 'train.txt'), 'w', encoding='utf-8') as f:
         for m in metadata:
             f.write('|'.join([str(x) for x in m]) + '\n')
-    frames = sum([m[2] for m in metadata])
-    sr = hparams.sample_rate
-    hours = frames / sr / 3600
-    print('Wrote %d utterances, %d time steps (%.2f hours)' % (len(metadata), frames, hours))
-    print('Min frame length: %d' % min(m[2] for m in metadata))
-    print('Max frame length: %d' % max(m[2] for m in metadata))
+    # frames = sum([m[2] for m in metadata])
+    # sr = hparams.sample_rate
+    # hours = frames / sr / 3600
+    # print('Wrote %d utterances, %d time steps (%.2f hours)' % (len(metadata), frames, hours))
+    # print('Min frame length: %d' % min(m[2] for m in metadata))
+    # print('Max frame length: %d' % max(m[2] for m in metadata))
 
 
 if __name__ == "__main__":
