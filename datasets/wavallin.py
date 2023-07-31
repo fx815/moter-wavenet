@@ -105,7 +105,7 @@ def _process_utterance(out_dir, index, audio_path, text):
     # assert len(out) % audio.get_hop_size() == 0
 
     # Write the spectrograms to disk:
-    name = splitext(basename(audio_path))[0]
+    name = basename(audio_path).replace('-wave.npy','')
     audio_filename = '%s-wave.npy' % (name)
     feature_filename = '%s-feats.npy' % (name)
     # mel_filename = '%s-feats.npy' % (name)

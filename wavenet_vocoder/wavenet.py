@@ -210,8 +210,6 @@ class WaveNet(nn.Module):
 
         x = F.softmax(x, dim=1) if softmax else x
 
-        print(x.shape)
-
         return x
 
     def incremental_forward(self, initial_input=None, c=None, g=None,

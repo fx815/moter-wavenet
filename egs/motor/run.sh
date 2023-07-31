@@ -5,7 +5,7 @@ VOC_DIR=$script_dir/../../
 
 # Directory that contains all wav files
 # **CHANGE** this to your database path
-db_root=~/Downloads
+db_root=~/Downloads/wavenet_data
 
 spk="motor"
 dumpdir=dump
@@ -20,7 +20,7 @@ stop_stage=0
 hparams=conf/motor_wavenet.json
 
 # Batch size at inference time.
-inference_batch_size=32
+inference_batch_size=5
 # Leave empty to use latest checkpoint
 eval_checkpoint=
 # Max number of utts. for evaluation( for debugging)
@@ -51,7 +51,7 @@ fi
 expdir=exp/$expname
 
 # Output directories
-data_root=data/motor                        # train/dev/eval splitted data
+data_root=data                        # train/dev/eval splitted data
 dump_org_dir=$dumpdir/$spk/org   # extracted features (pair of <wave, feats>)
 dump_norm_dir=$dumpdir/$spk/norm # extracted features (pair of <wave, feats>)
 
@@ -63,7 +63,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
       exit 1
     fi
     python $VOC_DIR/mksubset.py $db_root $data_root \
-      --train-dev-test-split
+      --train-dev-test-split --random-state=1234 --segment-size=5
 fi
 
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then

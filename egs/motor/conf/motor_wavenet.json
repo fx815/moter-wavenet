@@ -1,7 +1,7 @@
 {
   "name": "wavenet_vocoder",
   "input_type": "raw",
-  "quantize_channels": 256,
+  "quantize_channels": 4294967296,
   "preprocess": "",
   "postprocess": "",
   "global_gain_scale": 2.0,
@@ -45,15 +45,15 @@
     "anneal_rate": 0.5,
     "anneal_interval": 200000
   },
-  "max_train_steps": 100,
-  "nepochs": 2000,
+  "max_train_steps": 7100,
+  "nepochs": 100,
   "clip_thresh": -1,
   "max_time_sec": null,
   "max_time_steps": 2560,
   "exponential_moving_average": true,
   "ema_decay": 0.9999,
-  "checkpoint_interval": 50,
-  "train_eval_interval": 50,
-  "test_eval_epoch_interval": 1,
+  "checkpoint_interval": 1000,
+  "train_eval_interval": 1000,
+  "test_eval_epoch_interval": 10,
   "save_optimizer_state": true
 }

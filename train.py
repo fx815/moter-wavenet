@@ -802,6 +802,9 @@ def train_loop(device, model, data_loaders, optimizer, writer, checkpoint_dir=No
             test_evaluated = False
             for step, (x, y, c, g, input_lengths) in tqdm(enumerate(data_loader)):
                 # Whether to save eval (i.e., online decoding) result
+                print(f'global_epoch={global_epoch}')
+                print(f'step={step}')
+                print(f'global step={global_step}')
                 do_eval = False
                 eval_dir = join(checkpoint_dir, "intermediate", "{}_eval".format(phase))
                 # Do eval per eval_interval for train
@@ -819,6 +822,8 @@ def train_loop(device, model, data_loaders, optimizer, writer, checkpoint_dir=No
                     print("[{}] Eval at train step {}".format(phase, global_step))
 
                 # Do step
+                print(f'global test step={global_test_step}')
+                print(phase)
                 running_loss += __train_step(device,
                                              phase, global_epoch, global_step, global_test_step, model,
                                              optimizer, writer, criterion, x, y, c, g, input_lengths,
