@@ -10,7 +10,7 @@ db_root=~/Downloads/wavenet_data
 spk="motor"
 dumpdir=dump
 # waveform global gain normalization scale
-global_gain_scale=2.0
+global_gain_scale=5.43
 
 stage=0
 stop_stage=0
@@ -63,7 +63,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
       exit 1
     fi
     python $VOC_DIR/mksubset.py $db_root $data_root \
-      --train-dev-test-split --random-state=1234 --segment-size=5
+      --train-dev-test-split --random-state=1234 --segment-size=2
 fi
 
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then

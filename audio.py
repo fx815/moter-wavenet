@@ -41,7 +41,7 @@ def load_wav(path):
 
 
 def save_wav(wav, path):
-    wav *= 2,147,483,647 / max(0.01, np.max(np.abs(wav)))
+    wav *= 2147483647 / max(0.01, np.max(np.abs(wav)))
     wavfile.write(path, hparams.sample_rate, wav.astype(np.int32))
 
 

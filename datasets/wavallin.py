@@ -75,6 +75,7 @@ def _process_utterance(out_dir, index, audio_path, text):
         wav = f(wav)
 
     # Clip
+    print(f'np.abs(wav).max()=',np.abs(wav).max())
     if np.abs(wav).max() > 1.0:
         print("""Warning: abs max value exceeds 1.0: {}""".format(np.abs(wav).max()))
         # ignore this sample

@@ -135,11 +135,12 @@ if __name__ == "__main__":
             x = np.load(src_file)
             is_int32 = x.dtype == np.int32
             if is_int32:
-                x = x.astype(np.float64) / signed_int32_max
-            scaler.partial_fit(x.astype(np.float64).reshape(-1, 1))
-            total_samples[set_name] += len(x)
-            copy2(src_file, dst_path)
-            copy2(src_file.replace('wave.npy','feats.npy'),dst_path.replace('wave.npy','feats.npy'))
+                x = x.astype(np.float32) / signed_int32_max
+            if np.abs(x).max()<0.49:
+                scaler.partial_fit(x.astype(np.float64).reshape(-1, 1))
+                total_samples[set_name] += len(x)
+                copy2(src_file, dst_path)
+                copy2(src_file.replace('wave.npy','feats.npy'),dst_path.replace('wave.npy','feats.npy'))
 
     print("Waveform min: {}".format(scaler.data_min_))
     print("Waveform max: {}".format(scaler.data_max_))
