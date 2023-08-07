@@ -46,7 +46,7 @@ from nnmnkwii.datasets import FileSourceDataset, FileDataSource
 
 import librosa.display
 import soundfile as sf
-
+from scipy.fft import fft, fftfreq
 from tensorboardX import SummaryWriter
 from matplotlib import cm
 from warnings import warn
@@ -616,6 +616,17 @@ def eval_model(global_step, writer, device, model, y, c, g, input_lengths, eval_
     path = join(eval_dir, "step{:09d}_waveplots.png".format(global_step))
     save_waveplot(path, y_hat, y_target)
 
+    _, ax = plt.subplots()
+    N = len(y_target)
+    yf = fft(y_target)
+    yhatf = fft(y_hat)
+    xf = fftfreq(N, 1 / hparams.sample_rate)[:N//2]
+    ax.plot(xf[1:], 2.0/N * np.abs(yf[1:N//2]),label="target",alpha=0.5)
+    ax.plot(xf[1:]+1, 2.0/N * np.abs(yhatf[1:N//2]),label="prediction",alpha=0.5)
+    ax.legend()
+    path = join(eval_dir, "step{:09d}_fft.png".format(global_step))
+    plt.savefig(path)
+
 
 def save_states(global_step, writer, y_hat, y, input_lengths, checkpoint_dir=None):
     print("Save intermediate states at step {}".format(global_step))
@@ -666,6 +677,17 @@ def save_states(global_step, writer, y_hat, y, input_lengths, checkpoint_dir=Non
     sf.write(path, y_hat, samplerate=hparams.sample_rate)
     path = join(audio_dir, "step{:09d}_target.wav".format(global_step))
     sf.write(path, y, samplerate=hparams.sample_rate)
+
+    _, ax = plt.subplots()
+    N = len(y)
+    yf = fft(y)
+    yhatf = fft(y_hat)
+    xf = fftfreq(N, 1 / hparams.sample_rate)[:N//2]
+    ax.plot(xf[1:], 2.0/N * np.abs(yf[1:N//2]),label="target",alpha=0.5)
+    ax.plot(xf[1:]+1, 2.0/N * np.abs(yhatf[1:N//2]),label="prediction",alpha=0.5)
+    ax.legend()
+    path = join(audio_dir, "step{:09d}_fft.png".format(global_step))
+    plt.savefig(path)
 
 # workaround for https://github.com/pytorch/pytorch/issues/15716
 # the idea is to return outputs and replicas explicitly, so that making pytorch

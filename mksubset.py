@@ -24,6 +24,7 @@ import os
 from shutil import copy2
 from scipy.io import wavfile
 import numpy as np
+import random
 
 
 def read_wav_or_raw(src_file, is_raw):
@@ -96,6 +97,7 @@ if __name__ == "__main__":
     print("Total number of utterances: {}".format(len(src_files)))
     for idx, src_file in tqdm(enumerate(src_files)):
         indices.append(idx)
+    random.shuffle(indices)
 
     if train_dev_test_split:
         from sklearn.model_selection import train_test_split as split

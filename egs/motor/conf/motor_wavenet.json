@@ -1,7 +1,7 @@
 {
   "name": "wavenet_vocoder",
-  "input_type": "raw",
-  "quantize_channels": 30,
+  "input_type": "mulaw-quantize",
+  "quantize_channels": 256,
   "preprocess": "",
   "postprocess": "",
   "global_gain_scale": 5.43,
@@ -19,7 +19,7 @@
   "highpass_cutoff": 70.0,
   "output_distribution": "Logistic",
   "log_scale_min": -9.0,
-  "out_channels": 30,
+  "out_channels": 256,
   "layers": 2,
   "stacks": 1,
   "residual_channels": 4,
@@ -42,18 +42,18 @@
   },
   "lr_schedule": "step_learning_rate_decay",
   "lr_schedule_kwargs": {
-    "anneal_rate": 0.5,
-    "anneal_interval": 200000
+    "anneal_rate": 0.9,
+    "anneal_interval": 5000
   },
-  "max_train_steps": 2000,
-  "nepochs": 20,
+  "max_train_steps": 100000,
+  "nepochs": 1000,
   "clip_thresh": -1,
   "max_time_sec": null,
   "max_time_steps": 2560,
   "exponential_moving_average": true,
   "ema_decay": 0.9999,
-  "checkpoint_interval": 200,
-  "train_eval_interval": 200,
-  "test_eval_epoch_interval": 1,
+  "checkpoint_interval": 5000,
+  "train_eval_interval": 10000,
+  "test_eval_epoch_interval": 10,
   "save_optimizer_state": true
 }

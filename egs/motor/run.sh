@@ -5,12 +5,12 @@ VOC_DIR=$script_dir/../../
 
 # Directory that contains all wav files
 # **CHANGE** this to your database path
-db_root=~/Downloads/wavenet_data
+db_root=~/wavenet_data
 
 spk="motor"
 dumpdir=dump
 # waveform global gain normalization scale
-global_gain_scale=5.43
+global_gain_scale=4.37
 
 stage=0
 stop_stage=0
@@ -27,7 +27,7 @@ eval_checkpoint=
 eval_max_num_utt=1
 
 # exp tag
-tag="" # tag for managing experiments.
+tag="2" # tag for managing experiments.
 
 . $VOC_DIR/utils/parse_options.sh || exit 1;
 
@@ -63,7 +63,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ]; then
       exit 1
     fi
     python $VOC_DIR/mksubset.py $db_root $data_root \
-      --train-dev-test-split --random-state=1234 --segment-size=2
+      --train-dev-test-split --random-state=2143 --segment-size=2
 fi
 
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
@@ -92,7 +92,9 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     echo "stage 2: WaveNet training"
     python $VOC_DIR/train.py --dump-root $dump_norm_dir --preset $hparams \
       --checkpoint-dir=$expdir \
-      --log-event-path=tensorboard/${expname}
+      --log-event-path=tensorboard/${expname} \
+      --checkpoint=exp/motor_train_no_dev_2/checkpoint_step000037870.pth
+      # --restore-parts=exp/motor_train_no_dev_motor_wavenet/checkpoint_step000120000_ema.pth
 fi
 
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
